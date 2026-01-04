@@ -106,8 +106,8 @@ export function ComponentToolbar({ customDefinitions, onCreateComponent }: Compo
       </div>
 
       {/* Component List */}
-      <ScrollArea className="flex-1">
-        <div className="p-2">
+      <ScrollArea className="flex-1 overflow-hidden">
+        <div className="p-2 w-full overflow-hidden">
           {COMPONENT_CATEGORIES.map((category) => {
             const categoryDefs = groupedDefinitions[category.id] || []
             const isExpanded = expandedCategories.has(category.id) || isSearching
@@ -116,7 +116,7 @@ export function ComponentToolbar({ customDefinitions, onCreateComponent }: Compo
             if (!hasComponents && !isSearching) return null
 
             return (
-              <div key={category.id} className="mb-1">
+              <div key={category.id} className="mb-1 overflow-hidden">
                 {/* Category Header */}
                 <button
                   onClick={() => toggleCategory(category.id)}
@@ -144,7 +144,7 @@ export function ComponentToolbar({ customDefinitions, onCreateComponent }: Compo
 
                 {/* Category Components */}
                 {isExpanded && hasComponents && (
-                  <div className="mt-1 ml-4 flex flex-col gap-1">
+                  <div className="mt-1 pl-4 pr-2 flex flex-col gap-1 overflow-hidden">
                     {categoryDefs.map((comp) => (
                       <ComponentItem
                         key={comp.id}
@@ -215,14 +215,14 @@ function ComponentItem({ definition, onDragStart }: ComponentItemProps) {
         "flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-grab active:cursor-grabbing",
         "bg-background/50 border border-transparent",
         "hover:bg-accent hover:border-border",
-        "transition-all duration-150",
+        "transition-all duration-150 overflow-hidden",
         definition.isCustom && "border-dashed border-primary/30"
       )}
       title={definition.description}
     >
       {/* Icon or Image */}
       {definition.imageUrl ? (
-        <div className="w-8 h-8 rounded bg-muted flex items-center justify-center overflow-hidden">
+        <div className="w-8 h-8 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
           <img
             src={definition.imageUrl}
             alt={definition.label}
@@ -230,7 +230,7 @@ function ComponentItem({ definition, onDragStart }: ComponentItemProps) {
           />
         </div>
       ) : (
-        <div className="w-8 h-8 rounded bg-muted/50 flex items-center justify-center">
+        <div className="w-8 h-8 flex-shrink-0 rounded bg-muted/50 flex items-center justify-center">
           <Icon className="w-4 h-4 text-foreground/70" />
         </div>
       )}
@@ -244,7 +244,7 @@ function ComponentItem({ definition, onDragStart }: ComponentItemProps) {
       </div>
 
       {/* Node count indicator */}
-      <div className="flex items-center gap-0.5">
+      <div className="flex-shrink-0 flex items-center gap-0.5">
         {definition.nodes.slice(0, 4).map((node, idx) => (
           <div
             key={idx}
