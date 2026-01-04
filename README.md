@@ -33,6 +33,20 @@ Create your own components with:
 - Right-click context menu for component actions
 - Zoom controls (Ctrl + scroll or buttons)
 - Pan navigation (Shift + drag or middle mouse)
+- Resizable sidebar panels
+
+### ↩️ Undo/Redo History
+- Full undo/redo support with up to 50 history states
+- Keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z)
+- Toolbar buttons for quick access
+- History automatically cleared on project load
+
+### 🔌 Terminal Management
+- Add terminals to components with type selection dropdown
+- Right-click terminals for context menu:
+  - Change terminal type (Positive, Negative, Earth, AC Live, AC Neutral, Signal)
+  - Reposition terminal around the component
+  - Delete terminals (maintains minimum of 2)
 
 ### 💾 Project Management
 - Auto-save to browser localStorage
@@ -41,6 +55,8 @@ Create your own components with:
 - Project naming and organization
 
 ### ⌨️ Keyboard Shortcuts
+- `Ctrl + Z` / `⌘ + Z` - Undo
+- `Ctrl + Shift + Z` / `⌘ + Shift + Z` - Redo
 - `Delete/Backspace` - Remove selected component
 - `Escape` - Deselect / Close panels
 - `Ctrl + S` - Export project
@@ -117,10 +133,15 @@ circuit-maker/
 │   ├── settings-panel.tsx      # Project settings
 │   ├── create-component-dialog.tsx  # Custom component creator
 │   ├── swap-component-dialog.tsx    # Component swap dialog
+│   ├── add-terminal-dropdown.tsx    # Terminal type selector
+│   ├── terminal-context-menu.tsx    # Terminal right-click menu
+│   ├── terminal.tsx       # Terminal node component
 │   └── ui/                # shadcn/ui components
+│       └── resizable-panel.tsx  # Resizable sidebar panels
 ├── lib/                   # Utilities
 │   ├── component-definitions.ts  # Default component library
 │   ├── storage.ts         # LocalStorage utilities
+│   ├── use-history.ts     # Undo/redo history hook
 │   └── utils.ts           # General utilities
 └── types/                 # TypeScript types
     └── circuit.ts         # Core type definitions
