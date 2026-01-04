@@ -177,7 +177,7 @@ export function ConnectionsPanel({
   const quickSizes = COMMON_CABLE_SIZES[defaultCableUnit as keyof typeof COMMON_CABLE_SIZES] || COMMON_CABLE_SIZES["mm²"]
 
   return (
-    <div className="w-80 border-l border-border bg-card flex flex-col">
+    <div className="w-full h-full border-l border-border bg-card flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">

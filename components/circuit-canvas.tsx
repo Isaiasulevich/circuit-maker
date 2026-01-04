@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import type { Component, Connection, Node, ComponentDefinition, NodeType, TerminalPosition } from "@/types/circuit"
 import { DEFAULT_COMPONENT_DEFINITIONS } from "@/lib/component-definitions"
-import { ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react"
+import { ZoomIn, ZoomOut, Maximize2, Move, Plus, Trash2 } from "lucide-react"
 
 interface CircuitCanvasProps {
   components: Component[]
@@ -47,6 +47,7 @@ export function CircuitCanvas({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; componentId: string } | null>(null)
   const [swapDialogOpen, setSwapDialogOpen] = useState(false)
   const [swappingComponentId, setSwappingComponentId] = useState<string | null>(null)
+  const [hoveredConnection, setHoveredConnection] = useState<string | null>(null)
 
   const MIN_ZOOM = 0.25
   const MAX_ZOOM = 2
@@ -486,61 +487,114 @@ export function CircuitCanvas({
     setEditingConnection(null)
   }
 
-  // Generate a curved path between two points
+  // Generate an orthogonal (right-angled) path between two points
   const generateConnectionPath = (fromPos: { x: number; y: number }, toPos: { x: number; y: number }, fromNode: Node, toNode: Node) => {
-    const dx = toPos.x - fromPos.x
-    const dy = toPos.y - fromPos.y
-    const dist = Math.sqrt(dx * dx + dy * dy)
+    const fromEdge = fromNode.terminalPosition?.edge || "bottom"
+    const toEdge = toNode.terminalPosition?.edge || "bottom"
     
-    // Determine control point offsets based on terminal edges
-    const getControlOffset = (node: Node, isFrom: boolean) => {
-      const edge = node.terminalPosition?.edge || "bottom"
-      const offset = Math.min(50, dist * 0.3)
-      
+    // Calculate the stub length (how far the wire extends from terminal before turning)
+    const stubLength = 25
+    
+    // Get the direction vector for each terminal
+    const getDirection = (edge: string) => {
       switch (edge) {
-        case "top": return { x: 0, y: -offset }
-        case "bottom": return { x: 0, y: offset }
-        case "left": return { x: -offset, y: 0 }
-        case "right": return { x: offset, y: 0 }
-        default: return { x: 0, y: offset }
+        case "top": return { x: 0, y: -1 }
+        case "bottom": return { x: 0, y: 1 }
+        case "left": return { x: -1, y: 0 }
+        case "right": return { x: 1, y: 0 }
+        default: return { x: 0, y: 1 }
       }
     }
-
-    const fromOffset = getControlOffset(fromNode, true)
-    const toOffset = getControlOffset(toNode, false)
-
-    const cp1x = fromPos.x + fromOffset.x
-    const cp1y = fromPos.y + fromOffset.y
-    const cp2x = toPos.x + toOffset.x
-    const cp2y = toPos.y + toOffset.y
-
-    return `M ${fromPos.x} ${fromPos.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${toPos.x} ${toPos.y}`
+    
+    const fromDir = getDirection(fromEdge)
+    const toDir = getDirection(toEdge)
+    
+    // First stub point (extends from source terminal)
+    const stub1 = {
+      x: fromPos.x + fromDir.x * stubLength,
+      y: fromPos.y + fromDir.y * stubLength
+    }
+    
+    // Last stub point (extends from target terminal)
+    const stub2 = {
+      x: toPos.x + toDir.x * stubLength,
+      y: toPos.y + toDir.y * stubLength
+    }
+    
+    // Calculate the midpoint for the connecting segments
+    const midX = (stub1.x + stub2.x) / 2
+    const midY = (stub1.y + stub2.y) / 2
+    
+    // Determine routing based on terminal orientations
+    let pathPoints: { x: number; y: number }[] = [fromPos, stub1]
+    
+    // If terminals are on horizontal edges (top/bottom)
+    if ((fromEdge === "top" || fromEdge === "bottom") && (toEdge === "top" || toEdge === "bottom")) {
+      // Route: vertical -> horizontal -> vertical
+      pathPoints.push({ x: stub1.x, y: midY })
+      pathPoints.push({ x: stub2.x, y: midY })
+    }
+    // If terminals are on vertical edges (left/right)
+    else if ((fromEdge === "left" || fromEdge === "right") && (toEdge === "left" || toEdge === "right")) {
+      // Route: horizontal -> vertical -> horizontal
+      pathPoints.push({ x: midX, y: stub1.y })
+      pathPoints.push({ x: midX, y: stub2.y })
+    }
+    // Mixed orientations
+    else {
+      // Connect with an L-shape or Z-shape depending on positions
+      if (fromEdge === "top" || fromEdge === "bottom") {
+        pathPoints.push({ x: stub1.x, y: stub2.y })
+      } else {
+        pathPoints.push({ x: stub2.x, y: stub1.y })
+      }
+    }
+    
+    pathPoints.push(stub2, toPos)
+    
+    // Build the SVG path
+    let path = `M ${pathPoints[0].x} ${pathPoints[0].y}`
+    for (let i = 1; i < pathPoints.length; i++) {
+      path += ` L ${pathPoints[i].x} ${pathPoints[i].y}`
+    }
+    
+    return path
   }
 
-  // Generate path for active connection line
+  // Generate path for active connection line (while dragging)
   const generateActiveConnectionPath = (fromPos: { x: number; y: number }, toPos: { x: number; y: number }, fromNode: Node) => {
-    const dx = toPos.x - fromPos.x
-    const dy = toPos.y - fromPos.y
-    const dist = Math.sqrt(dx * dx + dy * dy)
+    const fromEdge = fromNode.terminalPosition?.edge || "bottom"
+    const stubLength = 25
     
-    const getControlOffset = (node: Node) => {
-      const edge = node.terminalPosition?.edge || "bottom"
-      const offset = Math.min(50, dist * 0.3)
-      
+    const getDirection = (edge: string) => {
       switch (edge) {
-        case "top": return { x: 0, y: -offset }
-        case "bottom": return { x: 0, y: offset }
-        case "left": return { x: -offset, y: 0 }
-        case "right": return { x: offset, y: 0 }
-        default: return { x: 0, y: offset }
+        case "top": return { x: 0, y: -1 }
+        case "bottom": return { x: 0, y: 1 }
+        case "left": return { x: -1, y: 0 }
+        case "right": return { x: 1, y: 0 }
+        default: return { x: 0, y: 1 }
       }
     }
-
-    const fromOffset = getControlOffset(fromNode)
-    const cp1x = fromPos.x + fromOffset.x
-    const cp1y = fromPos.y + fromOffset.y
-
-    return `M ${fromPos.x} ${fromPos.y} Q ${cp1x} ${cp1y}, ${toPos.x} ${toPos.y}`
+    
+    const fromDir = getDirection(fromEdge)
+    const stub = {
+      x: fromPos.x + fromDir.x * stubLength,
+      y: fromPos.y + fromDir.y * stubLength
+    }
+    
+    // Simple L-shape to cursor
+    const midPoint = fromEdge === "top" || fromEdge === "bottom"
+      ? { x: stub.x, y: toPos.y }
+      : { x: toPos.x, y: stub.y }
+    
+    return `M ${fromPos.x} ${fromPos.y} L ${stub.x} ${stub.y} L ${midPoint.x} ${midPoint.y} L ${toPos.x} ${toPos.y}`
+  }
+  
+  // Calculate midpoint of a path for label positioning
+  const getPathMidpoint = (pathPoints: { x: number; y: number }[]) => {
+    if (pathPoints.length < 2) return pathPoints[0] || { x: 0, y: 0 }
+    const midIndex = Math.floor(pathPoints.length / 2)
+    return pathPoints[midIndex]
   }
 
   return (
@@ -649,59 +703,90 @@ export function CircuitCanvas({
           const pathD = generateConnectionPath(fromPos, toPos, fromNode, toNode)
           const midX = (fromPos.x + toPos.x) / 2
           const midY = (fromPos.y + toPos.y) / 2
+          
+          const isHovered = hoveredConnection === conn.id
 
           return (
-            <g key={conn.id}>
-              {/* Connection path shadow */}
+            <g 
+              key={conn.id}
+              onMouseEnter={() => setHoveredConnection(conn.id)}
+              onMouseLeave={() => setHoveredConnection(null)}
+            >
+              {/* Invisible wider path for easier hovering */}
               <path
                 d={pathD}
-                stroke="rgba(0,0,0,0.2)"
-                strokeWidth="4"
+                stroke="transparent"
+                strokeWidth="12"
                 fill="none"
-                strokeLinecap="round"
+                className="pointer-events-auto cursor-pointer"
               />
               {/* Connection path */}
               <path
                 d={pathD}
                 stroke={getNodeColor(fromNode.type)}
-                strokeWidth="2.5"
+                strokeWidth={isHovered ? 3.5 : 2.5}
                 fill="none"
-                strokeLinecap="round"
-                className="pointer-events-auto cursor-pointer hover:stroke-[4] transition-all"
-                onClick={() => handleDeleteConnection(conn.id)}
+                strokeLinejoin="round"
+                className="pointer-events-none transition-all duration-150"
               />
               {/* Terminal dots */}
               <circle cx={fromPos.x} cy={fromPos.y} r="5" fill={getNodeColor(fromNode.type)} />
               <circle cx={toPos.x} cy={toPos.y} r="5" fill={getNodeColor(toNode.type)} />
               
-              {/* Cable size label */}
-              <foreignObject x={midX - 45} y={midY - 15} width="90" height="30" className="pointer-events-auto">
-                <div className="flex items-center justify-center">
-                  {editingConnection === conn.id ? (
-                    <Input
-                      type="text"
-                      value={conn.cableSize || ""}
-                      onChange={(e) => handleCableSizeChange(conn.id, e.target.value)}
-                      onBlur={() => setEditingConnection(null)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") setEditingConnection(null)
-                      }}
-                      className="h-6 text-xs px-2 w-20 bg-background/95 backdrop-blur"
-                      autoFocus
-                    />
-                  ) : (
-                    <div
-                      className="bg-background/95 backdrop-blur border border-border rounded-md px-2 py-1 text-xs font-medium cursor-pointer hover:bg-accent transition-colors"
-                      onDoubleClick={(e) => {
+              {/* Hover controls - show on hover */}
+              {isHovered && (
+                <foreignObject x={midX - 60} y={midY - 16} width="120" height="32" className="pointer-events-auto">
+                  <div className="flex items-center justify-center gap-1">
+                    {/* Cable size label */}
+                    {editingConnection === conn.id ? (
+                      <Input
+                        type="text"
+                        value={conn.cableSize || ""}
+                        onChange={(e) => handleCableSizeChange(conn.id, e.target.value)}
+                        onBlur={() => setEditingConnection(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setEditingConnection(null)
+                        }}
+                        className="h-6 text-xs px-2 w-16 bg-background/95 backdrop-blur"
+                        autoFocus
+                      />
+                    ) : (
+                      <div
+                        className="bg-background/95 backdrop-blur border border-border rounded-md px-2 py-1 text-xs font-medium cursor-pointer hover:bg-accent transition-colors"
+                        onDoubleClick={(e) => {
+                          e.stopPropagation()
+                          setEditingConnection(conn.id)
+                        }}
+                        title="Double-click to edit cable size"
+                      >
+                        {conn.cableSize || `2.5${defaultCableUnit}`}
+                      </div>
+                    )}
+                    {/* Delete button */}
+                    <button
+                      className="h-6 w-6 flex items-center justify-center bg-destructive/90 hover:bg-destructive text-destructive-foreground rounded-md transition-colors"
+                      onClick={(e) => {
                         e.stopPropagation()
-                        setEditingConnection(conn.id)
+                        handleDeleteConnection(conn.id)
                       }}
+                      title="Delete connection"
                     >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </foreignObject>
+              )}
+              
+              {/* Always show cable size when not hovered (smaller, less intrusive) */}
+              {!isHovered && (
+                <foreignObject x={midX - 35} y={midY - 10} width="70" height="20" className="pointer-events-none">
+                  <div className="flex items-center justify-center">
+                    <div className="bg-background/80 backdrop-blur border border-border/50 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                       {conn.cableSize || `2.5${defaultCableUnit}`}
                     </div>
-                  )}
-                </div>
-              </foreignObject>
+                  </div>
+                </foreignObject>
+              )}
             </g>
           )
         })}
@@ -716,24 +801,15 @@ export function CircuitCanvas({
 
           return (
             <g>
-              {/* Shadow */}
-              <path
-                d={pathD}
-                stroke="rgba(0,0,0,0.2)"
-                strokeWidth="4"
-                fill="none"
-                strokeLinecap="round"
-                strokeDasharray="8,4"
-              />
-              {/* Main line */}
+              {/* Main line - dashed to indicate in-progress */}
               <path
                 d={pathD}
                 stroke={getNodeColor(connectingFrom.type)}
                 strokeWidth="2.5"
                 fill="none"
-                strokeLinecap="round"
-                strokeDasharray="8,4"
-                opacity="0.8"
+                strokeLinejoin="round"
+                strokeDasharray="6,4"
+                opacity="0.85"
               />
               {/* Start point */}
               <circle cx={fromPos.x} cy={fromPos.y} r="6" fill={getNodeColor(connectingFrom.type)} />
@@ -833,3 +909,4 @@ export function CircuitCanvas({
 
 // Re-export types for backwards compatibility
 export type { Component, Connection, Node }
+

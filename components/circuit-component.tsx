@@ -198,10 +198,6 @@ export function CircuitComponent({
                 {component.notes}
               </span>
             )}
-            {/* Node count indicator */}
-            <span className="text-[10px] text-muted-foreground/70">
-              {component.nodes.length} terminal{component.nodes.length !== 1 ? "s" : ""}
-            </span>
           </div>
         </div>
 

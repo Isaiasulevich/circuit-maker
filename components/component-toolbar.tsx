@@ -73,7 +73,7 @@ export function ComponentToolbar({ customDefinitions, onCreateComponent }: Compo
   const isSearching = searchQuery.trim().length > 0
 
   return (
-    <aside className="w-72 border-r border-border bg-card flex flex-col">
+    <aside className="w-full h-full border-r border-border bg-card flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground">Components</h2>

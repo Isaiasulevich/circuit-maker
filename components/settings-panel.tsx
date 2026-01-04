@@ -53,7 +53,7 @@ export function SettingsPanel({
   }
 
   return (
-    <div className="w-80 border-l border-border bg-card flex flex-col">
+    <div className="w-full h-full border-l border-border bg-card flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div>

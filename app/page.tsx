@@ -6,6 +6,7 @@ import { ComponentToolbar } from "@/components/component-toolbar"
 import { ConnectionsPanel } from "@/components/connections-panel"
 import { SettingsPanel } from "@/components/settings-panel"
 import { CreateComponentDialog } from "@/components/create-component-dialog"
+import { ResizablePanel } from "@/components/ui/resizable-panel"
 import type { Component, Connection, ProjectSettings, ComponentDefinition, CircuitProject } from "@/types/circuit"
 import { DEFAULT_PROJECT_SETTINGS } from "@/types/circuit"
 import {
@@ -18,16 +19,30 @@ import {
   saveCustomDefinitions,
 } from "@/lib/storage"
 import { Button } from "@/components/ui/button"
-import { Save, Trash2, Settings, Plus, FileDown, FolderOpen, Zap } from "lucide-react"
+import { Trash2, Settings, Plus, FileDown, Zap, Undo2, Redo2 } from "lucide-react"
+import { useHistory } from "@/lib/use-history"
 
 export default function CircuitMapperPage() {
   // Project state
   const [projectId, setProjectId] = useState<string>("")
   const [projectName, setProjectName] = useState("My Van Electrical System")
-  const [components, setComponents] = useState<Component[]>([])
-  const [connections, setConnections] = useState<Connection[]>([])
   const [settings, setSettings] = useState<ProjectSettings>(DEFAULT_PROJECT_SETTINGS)
   const [customDefinitions, setCustomDefinitions] = useState<ComponentDefinition[]>([])
+  
+  // Undo/redo history for components and connections
+  const {
+    components,
+    connections,
+    setComponents,
+    setConnections,
+    setBoth,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    replaceState,
+    clearHistory,
+  } = useHistory()
   
   // UI state
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null)
@@ -44,8 +59,7 @@ export default function CircuitMapperPage() {
     if (savedProject) {
       setProjectId(savedProject.id)
       setProjectName(savedProject.name)
-      setComponents(savedProject.components)
-      setConnections(savedProject.connections)
+      replaceState(savedProject.components, savedProject.connections)
       setSettings(savedProject.settings)
     } else {
       const newProject = createNewProject()
@@ -83,8 +97,8 @@ export default function CircuitMapperPage() {
 
   const handleClear = () => {
     if (confirm("Are you sure you want to clear the entire circuit? This cannot be undone.")) {
-      setComponents([])
-      setConnections([])
+      setBoth([], [])
+      clearHistory()
       setSelectedComponentId(null)
     }
   }
@@ -110,8 +124,7 @@ export default function CircuitMapperPage() {
       const project = await importProjectFromFile(file)
       setProjectId(project.id)
       setProjectName(project.name)
-      setComponents(project.components)
-      setConnections(project.connections)
+      replaceState(project.components, project.connections)
       setSettings(project.settings)
       setSelectedComponentId(null)
       
@@ -145,27 +158,45 @@ export default function CircuitMapperPage() {
     const newProject = createNewProject()
     setProjectId(newProject.id)
     setProjectName(newProject.name)
-    setComponents([])
-    setConnections([])
+    replaceState([], [])
     setSelectedComponentId(null)
   }
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle shortcuts when typing in inputs
+      const isInputActive = document.activeElement?.tagName === "INPUT" || 
+                           document.activeElement?.tagName === "TEXTAREA"
+      
+      // Undo: Cmd+Z / Ctrl+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        if (!isInputActive) {
+          e.preventDefault()
+          undo()
+        }
+      }
+      
+      // Redo: Cmd+Shift+Z / Ctrl+Shift+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && e.shiftKey) {
+        if (!isInputActive) {
+          e.preventDefault()
+          redo()
+        }
+      }
+      
       // Delete selected component
       if ((e.key === "Delete" || e.key === "Backspace") && selectedComponentId) {
-        if (document.activeElement?.tagName !== "INPUT") {
+        if (!isInputActive) {
           e.preventDefault()
-          setComponents(components.filter((c) => c.id !== selectedComponentId))
-          setConnections(
-            connections.filter((conn) => {
-              const component = components.find((c) => c.id === selectedComponentId)
-              if (!component) return true
-              const nodeIds = component.nodes.map((n) => n.id)
-              return !nodeIds.includes(conn.fromNodeId) && !nodeIds.includes(conn.toNodeId)
-            })
+          const component = components.find((c) => c.id === selectedComponentId)
+          if (!component) return
+          const nodeIds = component.nodes.map((n) => n.id)
+          const newComponents = components.filter((c) => c.id !== selectedComponentId)
+          const newConnections = connections.filter((conn) => 
+            !nodeIds.includes(conn.fromNodeId) && !nodeIds.includes(conn.toNodeId)
           )
+          setBoth(newComponents, newConnections)
           setSelectedComponentId(null)
         }
       }
@@ -185,7 +216,7 @@ export default function CircuitMapperPage() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [selectedComponentId, components, connections])
+  }, [selectedComponentId, components, connections, undo, redo, setBoth])
 
   if (!isLoaded) {
     return (
@@ -236,6 +267,30 @@ export default function CircuitMapperPage() {
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {/* Undo/Redo Controls */}
+            <div className="flex items-center gap-1 border-r border-border pr-2 mr-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={undo}
+                disabled={!canUndo}
+                className="h-8 w-8"
+                title="Undo (⌘Z)"
+              >
+                <Undo2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={redo}
+                disabled={!canRedo}
+                className="h-8 w-8"
+                title="Redo (⌘⇧Z)"
+              >
+                <Redo2 className="w-4 h-4" />
+              </Button>
+            </div>
+            
             <Button variant="ghost" size="sm" onClick={handleNewProject} className="hidden sm:flex">
               <Plus className="w-4 h-4 mr-2" />
               New
@@ -259,10 +314,18 @@ export default function CircuitMapperPage() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar - Component Toolbar */}
-        <ComponentToolbar
-          customDefinitions={customDefinitions}
-          onCreateComponent={() => setShowCreateComponent(true)}
-        />
+        <ResizablePanel
+          side="left"
+          defaultWidth={288}
+          minWidth={220}
+          maxWidth={400}
+          collapsedWidth={0}
+        >
+          <ComponentToolbar
+            customDefinitions={customDefinitions}
+            onCreateComponent={() => setShowCreateComponent(true)}
+          />
+        </ResizablePanel>
 
         {/* Canvas Area */}
         <div className="flex-1 relative overflow-hidden">
@@ -280,30 +343,46 @@ export default function CircuitMapperPage() {
 
         {/* Right Panel - Settings or Connections */}
         {showSettings && (
-          <SettingsPanel
-            settings={settings}
-            onSettingsChange={setSettings}
-            projectName={projectName}
-            onProjectNameChange={setProjectName}
-            customDefinitions={customDefinitions}
-            onDeleteCustomDefinition={handleDeleteCustomDefinition}
-            onExport={handleExport}
-            onImport={handleImport}
-            onClear={handleClear}
-            onClose={() => setShowSettings(false)}
-          />
+          <ResizablePanel
+            side="right"
+            defaultWidth={320}
+            minWidth={280}
+            maxWidth={450}
+            collapsedWidth={0}
+          >
+            <SettingsPanel
+              settings={settings}
+              onSettingsChange={setSettings}
+              projectName={projectName}
+              onProjectNameChange={setProjectName}
+              customDefinitions={customDefinitions}
+              onDeleteCustomDefinition={handleDeleteCustomDefinition}
+              onExport={handleExport}
+              onImport={handleImport}
+              onClear={handleClear}
+              onClose={() => setShowSettings(false)}
+            />
+          </ResizablePanel>
         )}
 
         {selectedComponentId && !showSettings && (
-          <ConnectionsPanel
-            selectedComponentId={selectedComponentId}
-            components={components}
-            connections={connections}
-            setConnections={setConnections}
-            setComponents={setComponents}
-            defaultCableUnit={settings.defaultCableUnit}
-            onClose={() => setSelectedComponentId(null)}
-          />
+          <ResizablePanel
+            side="right"
+            defaultWidth={320}
+            minWidth={280}
+            maxWidth={450}
+            collapsedWidth={0}
+          >
+            <ConnectionsPanel
+              selectedComponentId={selectedComponentId}
+              components={components}
+              connections={connections}
+              setConnections={setConnections}
+              setComponents={setComponents}
+              defaultCableUnit={settings.defaultCableUnit}
+              onClose={() => setSelectedComponentId(null)}
+            />
+          </ResizablePanel>
         )}
       </div>
 
