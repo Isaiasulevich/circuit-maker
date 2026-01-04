@@ -15,7 +15,10 @@ interface TerminalProps {
   onStartConnection: (node: Node, e: React.MouseEvent) => void
   onEndConnection: (node: Node) => void
   onPositionChange?: (nodeId: string, position: TerminalPosition) => void
+  onContextMenu?: (e: React.MouseEvent, node: Node) => void
+  onRepositionEnd?: () => void
   disabled?: boolean
+  forceRepositioning?: boolean
 }
 
 /**
@@ -37,11 +40,21 @@ export function Terminal({
   onStartConnection,
   onEndConnection,
   onPositionChange,
+  onContextMenu,
+  onRepositionEnd,
   disabled = false,
+  forceRepositioning = false,
 }: TerminalProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const terminalRef = useRef<HTMLDivElement>(null)
+
+  // Start repositioning when forced (from context menu)
+  useEffect(() => {
+    if (forceRepositioning && onPositionChange) {
+      setIsDragging(true)
+    }
+  }, [forceRepositioning, onPositionChange])
 
   // Get terminal colors based on type
   const getTerminalColors = (type: NodeType) => {
@@ -52,9 +65,9 @@ export function Terminal({
         glow: "shadow-[0_0_12px_rgba(239,68,68,0.6)]" 
       },
       negative: { 
-        bg: "bg-blue-500", 
-        border: "border-blue-400", 
-        glow: "shadow-[0_0_12px_rgba(59,130,246,0.6)]" 
+        bg: "bg-neutral-900", 
+        border: "border-neutral-700", 
+        glow: "shadow-[0_0_12px_rgba(26,26,26,0.6)]" 
       },
       earth: { 
         bg: "bg-green-500", 
@@ -170,6 +183,9 @@ export function Terminal({
 
     const handleMouseUp = () => {
       setIsDragging(false)
+      if (onRepositionEnd) {
+        onRepositionEnd()
+      }
     }
 
     window.addEventListener("mousemove", handleMouseMove)
@@ -184,12 +200,6 @@ export function Terminal({
   // Handle connection interactions
   const handleMouseDown = (e: React.MouseEvent) => {
     if (disabled) return
-    
-    // Right-click for dragging position
-    if (e.button === 2 && onPositionChange) {
-      handleDragStart(e)
-      return
-    }
 
     // Left-click for connections
     if (e.button === 0) {
@@ -199,6 +209,15 @@ export function Terminal({
       } else if (!isConnecting) {
         onStartConnection(node, e)
       }
+    }
+  }
+
+  // Handle right-click for context menu
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (onContextMenu) {
+      onContextMenu(e, node)
     }
   }
 
@@ -243,8 +262,8 @@ export function Terminal({
       onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onContextMenu={(e) => e.preventDefault()}
-      title={`${node.label || node.type}${onPositionChange ? " (Right-click drag to reposition)" : ""}`}
+      onContextMenu={handleContextMenu}
+      title={node.label || node.type}
     >
       {/* Label for single char labels */}
       {node.label && node.label.length === 1 && (

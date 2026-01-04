@@ -252,7 +252,7 @@ function ComponentItem({ definition, onDragStart }: ComponentItemProps) {
             style={{
               backgroundColor:
                 node.type === "positive" ? "#ef4444" :
-                node.type === "negative" ? "#3b82f6" :
+                node.type === "negative" ? "#1a1a1a" :
                 node.type === "earth" ? "#22c55e" :
                 node.type === "ac-live" ? "#f97316" :
                 node.type === "ac-neutral" ? "#a855f7" :

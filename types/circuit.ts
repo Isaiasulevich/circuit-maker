@@ -52,7 +52,7 @@ export interface NodeTypeInfo {
 
 export const NODE_TYPES: NodeTypeInfo[] = [
   { type: "positive", label: "Positive (+)", color: "#ef4444", description: "DC positive terminal" },
-  { type: "negative", label: "Negative (-)", color: "#3b82f6", description: "DC negative terminal" },
+  { type: "negative", label: "Negative (-)", color: "#1a1a1a", description: "DC negative terminal" },
   { type: "earth", label: "Ground/Earth", color: "#22c55e", description: "Earth/chassis ground" },
   { type: "ac-live", label: "AC Live", color: "#f97316", description: "AC live/hot wire" },
   { type: "ac-neutral", label: "AC Neutral", color: "#a855f7", description: "AC neutral wire" },

@@ -453,7 +453,7 @@ export function CircuitCanvas({
       case "positive":
         return "#ef4444"
       case "negative":
-        return "#3b82f6"
+        return "#1a1a1a"
       case "earth":
         return "#22c55e"
       case "ac-live":

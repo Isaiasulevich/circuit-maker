@@ -5,8 +5,10 @@ import { useState, useCallback } from "react"
 import type { Component, Node, ComponentDefinition, NodeType, TerminalPosition } from "@/types/circuit"
 import { getIconByName } from "@/lib/component-definitions"
 import { cn } from "@/lib/utils"
-import { CirclePlus, Plus, Trash2 } from "lucide-react"
+import { CirclePlus } from "lucide-react"
 import { Terminal, TerminalLabel, getTerminalWorldPosition } from "./terminal"
+import { AddTerminalDropdown } from "./add-terminal-dropdown"
+import { TerminalContextMenu } from "./terminal-context-menu"
 
 // Component dimensions - exported for use in canvas
 export const COMPONENT_WIDTH = 180
@@ -44,7 +46,12 @@ export function CircuitComponent({
   showTerminalEditor = false,
 }: CircuitComponentProps) {
   const [isHovered, setIsHovered] = useState(false)
-  const [showTerminalControls, setShowTerminalControls] = useState(false)
+  const [terminalContextMenu, setTerminalContextMenu] = useState<{
+    x: number
+    y: number
+    node: Node
+  } | null>(null)
+  const [repositioningTerminalId, setRepositioningTerminalId] = useState<string | null>(null)
   
   // Find the definition for this component
   const definition = component.definition || allDefinitions.find((d) => d.type === component.type || d.id === component.type)
@@ -114,6 +121,34 @@ export function CircuitComponent({
     if (component.nodes.length <= 1) return
     onUpdateNodes(component.id, component.nodes.filter(n => n.id !== nodeId))
   }, [component, onUpdateNodes])
+
+  // Change terminal type
+  const handleChangeTerminalType = useCallback((nodeId: string, newType: NodeType) => {
+    const updatedNodes = component.nodes.map((node) => {
+      if (node.id === nodeId) {
+        // Update label based on type
+        let label = node.label
+        if (newType === "positive") label = "+"
+        else if (newType === "negative") label = "-"
+        else if (!label) label = ""
+        
+        return { ...node, type: newType, label }
+      }
+      return node
+    })
+    onUpdateNodes(component.id, updatedNodes)
+  }, [component, onUpdateNodes])
+
+  // Handle terminal context menu
+  const handleTerminalContextMenu = useCallback((e: React.MouseEvent, node: Node) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setTerminalContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      node,
+    })
+  }, [])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0 && !e.shiftKey) {
@@ -203,23 +238,8 @@ export function CircuitComponent({
 
         {/* Terminal edit controls - shown when selected */}
         {isSelected && (
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background/95 backdrop-blur border border-border rounded-lg px-2 py-1 shadow-lg z-30">
-            <button
-              onClick={() => handleAddTerminal("positive")}
-              className="p-1 rounded hover:bg-red-500/20 text-red-500 transition-colors"
-              title="Add positive terminal"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => handleAddTerminal("negative")}
-              className="p-1 rounded hover:bg-blue-500/20 text-blue-500 transition-colors"
-              title="Add negative terminal"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-            <div className="w-px h-4 bg-border mx-1" />
-            <span className="text-[10px] text-muted-foreground">Right-click terminals to move</span>
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background/95 backdrop-blur border border-border rounded-lg px-1.5 py-1 shadow-lg z-30">
+            <AddTerminalDropdown onAddTerminal={handleAddTerminal} />
           </div>
         )}
       </div>
@@ -237,8 +257,29 @@ export function CircuitComponent({
           onStartConnection={onStartConnection}
           onEndConnection={onEndConnection}
           onPositionChange={handleTerminalPositionChange}
+          onContextMenu={handleTerminalContextMenu}
+          onRepositionEnd={() => setRepositioningTerminalId(null)}
+          forceRepositioning={repositioningTerminalId === node.id}
         />
       ))}
+
+      {/* Terminal Context Menu */}
+      {terminalContextMenu && (
+        <TerminalContextMenu
+          x={terminalContextMenu.x}
+          y={terminalContextMenu.y}
+          node={terminalContextMenu.node}
+          canDelete={component.nodes.length > 1}
+          onChangeType={handleChangeTerminalType}
+          onDelete={handleRemoveTerminal}
+          onStartReposition={() => {
+            setRepositioningTerminalId(terminalContextMenu.node.id)
+          }}
+          onClose={() => {
+            setTerminalContextMenu(null)
+          }}
+        />
+      )}
 
       {/* Terminal labels */}
       {component.nodes.map((node) => (

@@ -141,7 +141,7 @@ export function ConnectionsPanel({
       case "positive":
         return "text-red-500"
       case "negative":
-        return "text-blue-500"
+        return "text-neutral-900"
       case "earth":
         return "text-green-500"
       case "ac-live":
@@ -160,7 +160,7 @@ export function ConnectionsPanel({
       case "positive":
         return "bg-red-500"
       case "negative":
-        return "bg-blue-500"
+        return "bg-neutral-900"
       case "earth":
         return "bg-green-500"
       case "ac-live":
